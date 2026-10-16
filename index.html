@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Kongeuni KT Maker</title>
+  <link rel="icon" type="image/png" href="assets/app-logo.png">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="screens.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="app-brand"><img src="assets/app-logo.png" alt="콩으니 로고"><strong>Kongeuni KT Maker</strong><span>Android 26.1.0</span></div>
+    <div class="actions"><button id="open-project">불러오기</button><button id="save-project">프로젝트 저장</button><button class="primary" id="build-apk">APK 만들기</button></div>
+  </header>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="section-label">프로젝트</div>
+      <button class="nav">테마 정보</button>
+      <div class="section-label">화면</div>
+      <button class="nav active" data-screen="friends">친구</button>
+      <button class="nav" data-screen="chats">채팅 목록</button>
+      <button class="nav" data-screen="chatroom">채팅방</button>
+      <button class="nav" data-screen="notification">알림</button>
+      <button class="nav" data-screen="now">지금</button>
+      <button class="nav" data-screen="more">더보기</button>
+      <button class="nav" data-screen="passcode">잠금화면</button>
+      <button class="nav" data-screen="splash">시작 화면</button>
+    </aside>
+    <main class="stage">
+      <div class="stagebar"><span class="platform active">Android</span><span>공식 샘플 리소스 합성 미리보기</span></div>
+      <div class="canvas">
+        <div class="phone" id="phone">
+          <div class="screen friends-screen" id="friends">
+            <img class="main-bg" data-slot="main-bg" src="assets/theme_background_image.png">
+            <div class="header"><div class="me"><img data-slot="profile" src="assets/theme_profile_01_image.png"><b>어피치</b></div><div class="icons">⌕　♙　♧　⚙</div></div>
+            <div class="chips"><b>친구</b><span>소식</span></div>
+            <div class="banner"><b>오늘의 카카오가 궁금하다면?</b><small>카카오소식 보러가기</small></div>
+            <div class="section-title">업데이트 프로필</div>
+            <div class="friend-list" id="friend-list"></div>
+            <div class="tabbar" id="friends-tabs"></div>
+          </div>
+          <div class="screen chats-screen hidden" id="chats">
+            <img class="main-bg" data-slot="main-bg" src="assets/theme_background_image.png">
+            <div class="header"><b>채팅</b><div class="icons">⌕　♧　⚙</div></div>
+            <div class="chips"><b>전체</b><span>안읽음 <i>40</i></span><span>친구 <i>12</i></span><span>☷</span></div>
+            <div class="banner"><b>오늘의 카카오가 궁금하다면?</b><small>카카오소식 보러가기</small></div>
+            <div class="chat-list" id="chat-list"></div>
+            <div class="tabbar" id="chats-tabs"></div>
+          </div>
+          <div class="screen chatroom-screen hidden" id="chatroom">
+            <img class="chat-bg" data-slot="chat-bg" src="assets/theme_chatroom_background_image.png">
+            <div class="chat-header"><span>‹</span><b>어피치</b><div>⌕　♧　☰</div></div>
+            <div class="messages">
+              <div class="sender"><img data-slot="profile" src="assets/theme_profile_01_image.png"><small>어피치</small></div>
+              <div class="bubble-row"><img class="bubble-img you" src="assets/theme_chatroom_bubble_you_01_image.9.png"><span>어피치피치한</span></div>
+              <div class="bubble-row"><img class="bubble-img you" src="assets/theme_chatroom_bubble_you_02_image.9.png"><span>봄~봄~봄이 왔어요</span></div>
+              <div class="bubble-row mine"><img class="bubble-img me" src="assets/theme_chatroom_bubble_me_01_image.9.png"><span>으아 설레에</span></div>
+              <div class="bubble-row mine"><img class="bubble-img me" src="assets/theme_chatroom_bubble_me_02_image.9.png"><span>ㅎㅎㅎ</span></div>
+            </div>
+            <div class="inputbar"><b>＋</b><span>카카오톡 테마</span><span>☺</span><button>➤</button></div>
+          </div>
+          <div class="screen notification-screen hidden" id="notification">
+            <img class="chat-bg" data-slot="chat-bg" src="assets/theme_chatroom_background_image.png">
+            <div class="notice-card"><img data-slot="profile" src="assets/theme_profile_01_image.png"><div><b>어피치</b><small>새로운 메시지가 도착했습니다.</small></div></div>
+            <div class="notice-card pressed"><img data-slot="profile" src="assets/theme_profile_01_image.png"><div><b>카카오프렌즈</b><small>알림을 눌렀을 때의 상태입니다.</small></div></div>
+            <div class="sharebar"><span>사진을 전달했습니다.</span><b>채팅방 이동</b></div>
+          </div>
+          <div class="screen now-screen hidden" id="now">
+            <img class="main-bg" data-slot="main-bg" src="assets/theme_background_image.png">
+            <div class="header"><b>지금</b><div class="icons">⌕　♧　⚙</div></div>
+            <div class="chips"><span>숏폼</span><b>오픈채팅</b></div>
+            <div class="banner"><b>오늘의 카카오가 궁금하다면?</b><small>카카오소식 보러가기</small></div>
+            <div class="chat-list" id="now-list"></div><div class="tabbar" id="now-tabs"></div>
+          </div>
+          <div class="screen more-screen hidden" id="more">
+            <img class="main-bg" data-slot="main-bg" src="assets/theme_background_image.png">
+            <div class="header"><b>더보기</b><div class="icons">⌕　□　⚙</div></div>
+            <div class="chips"><b>홈</b><span>지갑</span></div>
+            <div class="paybar"><b>pay 53,000원</b><span>송금　 자산　 결제</span></div>
+            <div class="service-grid"></div><div class="tabbar" id="more-tabs"></div>
+          </div>
+          <div class="screen passcode-screen hidden" id="passcode">
+            <img class="passcode-bg" data-slot="passcode-bg" src="assets/theme_passcode_background_image.png">
+            <div class="passcode-content"><h2>암호</h2><small>카카오톡 암호를 입력해주세요.</small><div class="pass-bullets" id="pass-bullets"></div><div class="keypad"></div></div>
+          </div>
+          <div class="screen splash-screen hidden" id="splash"><img data-slot="splash-bg" src="assets/theme_splash_image.png"></div>
+        </div>
+      </div>
+    </main>
+    <aside class="inspector">
+      <small>선택한 부분</small><h2 id="panel-title">화면 배경</h2>
+      <hr><h3>연결된 색상</h3>
+      <label class="color-row"><input type="color" id="main-color" value="#ffdede"><span><b>메인 배경</b><small>theme_background_color</small></span><code>#FFDEDE</code></label>
+      <hr><h3>연결된 이미지</h3>
+      <button class="asset-row" id="replace-bg"><img src="assets/theme_background_image.png"><span><b>배경</b><small>theme_background_image.png</small></span></button>
+      <button class="asset-row" id="replace-profile"><img src="assets/theme_profile_01_image.png"><span><b>기본 프로필</b><small>theme_profile_01_image.png</small></span></button>
+      <button class="asset-row" id="replace-screen-bg"><img src="assets/theme_chatroom_background_image.png"><span><b>현재 화면 이미지</b><small id="screen-asset-name">theme_chatroom_background_image.png</small></span></button>
+      <p class="hint">이미지를 선택하면 미리보기에 즉시 반영됩니다.</p>
+    </aside>
+  </div>
+  <script src="renderer.js"></script>
+  <script src="nine-assets.js"></script>
+  <script src="resource-catalog.js"></script>
+  <script src="history-state.js"></script>
+  <script src="editor.js"></script>
+  <script src="editor-details.js"></script>
+  <script src="editor-v5.js"></script>
+  <link rel="stylesheet" href="editor-v5.css">
+  <script src="nine-coordinates.js"></script>
+  <script src="editor-v6.js"></script>
+  <link rel="stylesheet" href="editor-v6.css">
+  <script src="editor-v7.js"></script>
+  <link rel="stylesheet" href="editor-v7.css">
+  <script src="editor-v8.js"></script>
+  <link rel="stylesheet" href="editor-v8.css">
+</body>
+</html>

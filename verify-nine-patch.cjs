@@ -1,0 +1,4 @@
+const assert=require('assert/strict'),{PNG}=require('pngjs'),{normalize}=require('./nine-patch.cjs');
+const image=new PNG({width:12,height:10});for(let i=0;i<image.data.length;i+=4){image.data[i]=100;image.data[i+1]=50;image.data[i+2]=200;image.data[i+3]=255}
+const original=PNG.sync.write(image),result=normalize(original),out=PNG.sync.read(result.buffer);assert.equal(out.width,14);assert.equal(out.height,12);for(let y=0;y<10;y++)for(let x=0;x<12;x++)assert.deepEqual(out.data.subarray(((y+1)*14+x+1)*4,((y+1)*14+x+1)*4+4),image.data.subarray((y*12+x)*4,(y*12+x)*4+4));assert.equal(normalize(result.buffer).changed,false);
+const altered=PNG.sync.read(result.buffer);altered.data[4]=220;altered.data[7]=128;const fixed=normalize(PNG.sync.write(altered));assert.equal(PNG.sync.read(fixed.buffer).width,14);assert.equal(normalize(fixed.buffer).changed,false);console.log('PASS: ordinary PNG content preserved, marker colors repaired, valid nine-patch unchanged');
