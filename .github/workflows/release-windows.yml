@@ -1,53 +1,60 @@
 name: Build and publish Windows release
-
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
-    paths:
-      - .github/workflows/release-windows.yml
-
+    branches: [main]
+    paths: [.github/workflows/release-windows.yml, package.json, package-lock.json]
 permissions:
   contents: write
-
+concurrency:
+  group: windows-release
+  cancel-in-progress: false
 jobs:
   release:
     runs-on: windows-latest
     steps:
-      - name: Check out source
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build Windows application
-        run: npm run package
-
-      - name: Verify packaged files
+      - run: npm ci
+      - name: Build portable EXE
+        run: npm run package:exe
+      - name: Verify standalone launch
         shell: pwsh
         run: |
-          $app = "dist/KTalkThemeStudio-win32-x64/KTalkThemeStudio.exe"
-          if (-not (Test-Path -LiteralPath $app)) { throw "Packaged executable was not created: $app" }
-          $logo = "dist/KTalkThemeStudio-win32-x64/resources/app/assets/app-logo.png"
-          if (-not (Test-Path -LiteralPath $logo)) { throw "Application logo was not included: $logo" }
-
-      - name: Create ZIP and checksum
-        shell: pwsh
-        run: |
-          $zip = "Kongeuni-KT-Maker-v0.1.0-windows-x64.zip"
-          Compress-Archive -LiteralPath "dist/KTalkThemeStudio-win32-x64" -DestinationPath $zip -CompressionLevel Optimal
-          (Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash.ToLowerInvariant() + "  " + $zip | Set-Content -Encoding ascii "Kongeuni-KT-Maker-v0.1.0-windows-x64.sha256"
-
-      - name: Publish v0.1.0
+          $exe = Resolve-Path 'dist/release/Kongeuni-KT-Maker-0.1.0-windows-x64.exe'
+          $env:KTALK_CAPTURE = Join-Path $env:RUNNER_TEMP 'portable-launch.png'
+          $env:KTALK_TEST_DATA = Join-Path $env:RUNNER_TEMP 'ktmaker-test-data'
+          Start-Process -FilePath $exe -WorkingDirectory $env:RUNNER_TEMP -WindowStyle Hidden
+          $deadline = (Get-Date).AddSeconds(120)
+          while (!(Test-Path $env:KTALK_CAPTURE) -and (Get-Date) -lt $deadline) { Start-Sleep -Seconds 2 }
+          if (!(Test-Path $env:KTALK_CAPTURE)) { throw 'Portable EXE failed to render the editor.' }
+          if ((Get-Item $env:KTALK_CAPTURE).Length -lt 10000) { throw 'Editor screenshot is unexpectedly small.' }
+      - name: Publish EXE only
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v0.1.0 "Kongeuni-KT-Maker-v0.1.0-windows-x64.zip" "Kongeuni-KT-Maker-v0.1.0-windows-x64.sha256" --target "${{ github.sha }}" --title "Kongeuni KT Maker v0.1.0" --notes "첫 Windows 배포본입니다. ZIP을 푼 뒤 KTalkThemeStudio.exe를 실행하세요. 실행 파일만 분리하지 말고 폴더 전체를 함께 사용해야 합니다. APK 생성에는 JDK 21과 Android SDK Platform 35 / Build Tools 35.0.0이 필요합니다."
+          $tag = 'v0.1.0'
+          $exe = 'dist/release/Kongeuni-KT-Maker-0.1.0-windows-x64.exe'
+          $notes = 'Windows 포터블 배포본입니다. EXE 하나를 내려받아 실행하세요. 설치나 ZIP 압축 해제가 필요 없습니다. 첫 실행 시 내부 파일 추출에 잠시 시간이 걸릴 수 있습니다. APK 생성에는 JDK 21과 Android SDK Platform 35 / Build Tools 35.0.0이 필요합니다.'
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag $exe --target '${{ github.sha }}' --title 'Kongeuni KT Maker v0.1.0' --notes $notes
+            if ($LASTEXITCODE -ne 0) { throw 'Release creation failed.' }
+          } else {
+            gh release upload $tag $exe --clobber
+            if ($LASTEXITCODE -ne 0) { throw 'EXE upload failed; old assets preserved.' }
+            gh release edit $tag --notes $notes
+            if ($LASTEXITCODE -ne 0) { throw 'Release notes update failed.' }
+            $assets = gh release view $tag --json assets | ConvertFrom-Json
+            if ($LASTEXITCODE -ne 0) { throw 'Could not inspect release assets.' }
+            foreach ($asset in $assets.assets) {
+              if ($asset.name -in @('Kongeuni-KT-Maker-v0.1.0-windows-x64.zip', 'Kongeuni-KT-Maker-v0.1.0-windows-x64.sha256')) {
+                gh release delete-asset $tag $asset.name --yes
+                if ($LASTEXITCODE -ne 0) { throw "Could not remove old asset: $($asset.name)" }
+              }
+            }
+          }
