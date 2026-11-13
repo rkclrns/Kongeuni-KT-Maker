@@ -40,11 +40,12 @@ Gradle과 의존성은 첫 빌드 때 내려받으므로 인터넷 연결이 필
 ## Windows 실행본 만들기
 
 ```sh
-npm run package
+npm run package:exe
 ```
 
-`dist/KTalkThemeStudio-win32-x64/`에 실행 폴더가 생성됩니다.
-실행 파일만 분리하지 말고 폴더 전체를 함께 사용하세요.
+`dist/release/Kongeuni-KT-Maker-0.1.0-windows-x64.exe`가 생성됩니다.
+릴리즈의 EXE 하나를 내려받아 실행하면 됩니다. 설치나 ZIP 압축 해제가 필요 없습니다.
+첫 실행 시 내부 파일을 임시 폴더에 풀기 때문에 잠시 시간이 걸릴 수 있습니다.
 
 ## 프로젝트와 기본 정보
 
