@@ -1,0 +1,53 @@
+name: Verify editor and APK builds
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: npm ci
+      - name: Check Java detection and build completion
+        run: node --test test/java-runtime.test.cjs test/build-button.test.cjs
+      - name: Install required Android SDK packages
+        shell: pwsh
+        run: |
+          & "$env:ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager.bat" 'platforms;android-35' 'build-tools;35.0.0' 'platform-tools'
+          if ($LASTEXITCODE -ne 0) { throw 'Android SDK setup failed.' }
+      - name: Build template APK
+        shell: pwsh
+        working-directory: android-template
+        run: |
+          $sdk = $env:ANDROID_HOME.Replace([char]92, [char]47)
+          Set-Content -Path local.properties -Value "sdk.dir=$sdk" -Encoding utf8
+          ./gradlew.bat assembleDebug --no-daemon --stacktrace
+          if ($LASTEXITCODE -ne 0) { throw 'Template APK build failed.' }
+          $apks = @(Get-ChildItem build/outputs/apk -Filter *.apk -Recurse)
+          if ($apks.Count -eq 0) { throw 'No APK was generated.' }
+      - name: Build portable EXE
+        run: npm run package:exe
+      - name: Verify portable launch
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $exe = Resolve-Path "dist/release/Kongeuni-KT-Maker-$version-windows-x64.exe"
+          $env:KTALK_CAPTURE = Join-Path $env:RUNNER_TEMP 'verified-editor.png'
+          $env:KTALK_TEST_DATA = Join-Path $env:RUNNER_TEMP 'verified-editor-data'
+          Start-Process -FilePath $exe -WorkingDirectory $env:RUNNER_TEMP -WindowStyle Hidden
+          $deadline = (Get-Date).AddSeconds(120)
+          while (!(Test-Path $env:KTALK_CAPTURE) -and (Get-Date) -lt $deadline) { Start-Sleep -Seconds 2 }
+          if (!(Test-Path $env:KTALK_CAPTURE)) { throw 'Portable EXE failed to render the editor.' }
+          if ((Get-Item $env:KTALK_CAPTURE).Length -lt 10000) { throw 'Editor screenshot is unexpectedly small.' }
