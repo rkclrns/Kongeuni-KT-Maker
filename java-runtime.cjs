@@ -50,7 +50,7 @@ function selectJava({ env = process.env, home = os.homedir(), readRegistry = reg
       }
     } catch { /* Try the next installed JDK. */ }
   }
-  throw new Error('JDK 21�� ã�� ���߽��ϴ�. JDK 21�� ��ġ�ϰų� JAVA_HOME�� JDK 21 ��ġ ������ �������ּ���. ��ġ�� �ٸ� Java ������ �״�� �μŵ� �˴ϴ�.');
+  throw new Error('JDK 21을 찾지 못했습니다. JDK 21을 설치하거나 JAVA_HOME을 JDK 21 설치 폴더로 지정해주세요. 설치된 다른 Java 버전은 그대로 두셔도 됩니다.');
 }
 
 module.exports = { selectJava };

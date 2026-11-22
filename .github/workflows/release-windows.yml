@@ -19,11 +19,18 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Verify Korean text and build completion
+        run: node --test test/java-runtime.test.cjs test/build-button.test.cjs
       - name: Build portable EXE
         run: npm run package:exe
       - name: Verify standalone launch
         shell: pwsh
         run: |
+          foreach ($source in @('renderer.js', 'java-runtime.cjs')) {
+            $expected = (Get-FileHash $source -Algorithm SHA256).Hash
+            $packaged = Join-Path 'dist/KTalkThemeStudio-win32-x64/resources/app' $source
+            if ((Get-FileHash $packaged -Algorithm SHA256).Hash -ne $expected) { throw "Packaged source differs: $source" }
+          }
           $exe = Resolve-Path 'dist/release/Kongeuni-KT-Maker-0.1.0-windows-x64.exe'
           $env:KTALK_CAPTURE = Join-Path $env:RUNNER_TEMP 'portable-launch.png'
           $env:KTALK_TEST_DATA = Join-Path $env:RUNNER_TEMP 'ktmaker-test-data'

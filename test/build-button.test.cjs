@@ -24,7 +24,7 @@ function editor(buildApk, onAlert) {
     alert(message) { onAlert(message, node('#build-apk')); }
   };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../renderer.js'), 'utf8'), context);
-  return { button: node('#build-apk'), click: node('#build-apk').handlers.click };
+  return { button: node('#build-apk'), click: node('#build-apk').handlers.click, node };
 }
 
 for (const outcome of ['success', 'failure', 'cancel']) {
@@ -35,7 +35,7 @@ for (const outcome of ['success', 'failure', 'cancel']) {
     const view = editor(() => { calls++; return pending; }, (message, button) => {
       alerts++;
       assert.equal(button.disabled, false);
-      assert.equal(button.textContent, 'APK �����');
+      assert.equal(button.textContent, 'APK \uB9CC\uB4E4\uAE30');
       assert.equal(button.attributes['aria-busy'], undefined);
       assert.match(message, outcome === 'success' ? /test.apk/ : /test failure/);
     });
@@ -51,3 +51,21 @@ for (const outcome of ['success', 'failure', 'cancel']) {
     assert.equal(alerts, outcome === 'cancel' ? 0 : 1);
   });
 }
+
+test('Korean preview labels survive source transfer and packaging', () => {
+  const view = editor(async () => ({ canceled: true }), () => {});
+  assert.ok(view.node('#friend-list').innerHTML.includes('\uC5C5\uB370\uC774\uD2B8\uD55C \uCE5C\uAD6C'));
+  assert.ok(view.node('#chat-list').innerHTML.includes('\uC5B4\uD53C\uCE58'));
+  assert.ok(view.node('#now-list').innerHTML.includes('\uD574\uC678 \uC5EC\uD589 \uC0AC\uC9C4\uBC29'));
+  assert.ok(view.node('.service-grid').innerHTML.includes('\uC120\uBB3C\uD558\uAE30'));
+  assert.ok(view.node('.keypad').innerHTML.includes('\u232B'));
+});
+
+test('application sources contain valid UTF-8 without replacement characters', () => {
+  const root = path.join(__dirname, '..');
+  for (const file of fs.readdirSync(root).filter(name => /\.(?:js|cjs|html|css)$/.test(name))) {
+    const bytes = fs.readFileSync(path.join(root, file));
+    const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    assert.equal(source.includes('\uFFFD'), false, `Corrupted text in ${file}`);
+  }
+});
