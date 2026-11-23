@@ -2,7 +2,7 @@
   "name": "ktalk-theme-studio",
   "productName": "Kongeuni KT Maker",
   "description": "Android KakaoTalk theme editor by Kongeuni",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "main": "main.js",
   "scripts": {
@@ -35,7 +35,8 @@
       "signAndEditExecutable": false
     },
     "portable": {
-      "requestExecutionLevel": "user"
+      "requestExecutionLevel": "user",
+      "unpackDirName": false
     },
     "executableName": "KTalkThemeStudio"
   }
