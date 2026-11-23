@@ -1,11 +1,12 @@
-// Builds an iOS KakaoTalk theme (.ktheme) from the same project data used for
-// the Android APK. Android xxhdpi resources map almost 1:1 to iOS @3x images,
-// so every image is converted from the Android template or the user's edits.
+// Builds an iPhone KakaoTalk theme (.ktheme). The iPhone tab keeps its own
+// colors and images (project.ios); they start from the Android template, and
+// Android xxhdpi resources map almost 1:1 to iOS @3x images.
 const fs = require('fs');
 const path = require('path');
 const { fileURLToPath } = require('url');
 const { PNG } = require('pngjs');
 const { createZip } = require('./zip-writer.cjs');
+const IOS = require('./ios-catalog.js');
 
 const TEMPLATE = path.join(__dirname, 'android-template', 'src', 'main');
 const XXHDPI = path.join(TEMPLATE, 'theme', 'drawable-xxhdpi');
@@ -142,6 +143,8 @@ function decodeDataUrl(value) {
     ? Buffer.from(value.split(',')[1], 'base64') : null;
 }
 
+// Loads Android resources: the user's edits first, then the template.
+// loader.edited(name) tells whether a resource came from the user.
 function imageLoader(data) {
   const images = data.editor?.images || {};
   const legacy = {};
@@ -149,20 +152,108 @@ function imageLoader(data) {
     if (!SLOT_FILES[slot] || typeof url !== 'string' || !url.startsWith('file:')) continue;
     try { const file = fileURLToPath(url); if (fs.existsSync(file)) legacy[SLOT_FILES[slot]] = file; } catch { /* ignore */ }
   }
-  return name => {
+  const load = name => {
     const edited = decodeDataUrl(images[name]);
     if (edited) return PNG.sync.read(edited);
     if (legacy[name]) return PNG.sync.read(fs.readFileSync(legacy[name]));
     const file = path.join(XXHDPI, name);
     return fs.existsSync(file) ? PNG.sync.read(fs.readFileSync(file)) : null;
   };
+  load.edited = name => !!decodeDataUrl(images[name]) || !!legacy[name];
+  return load;
 }
 
-/* ---------- package ---------- */
+/* ---------- iPhone state ---------- */
 
-const TABS = ['friends', 'chats', 'now', 'shopping', 'more', 'call', 'piccoma'];
+const IMAGE_SPECS = Object.fromEntries(IOS.images.map(spec => [spec.name, spec]));
+const COLOR_KEYS = new Set(IOS.colors.map(c => c.key));
 const cap = s => s[0].toUpperCase() + s.slice(1);
 const pt = px => Math.max(0, Math.round(px / 3));
+const validColor = v => typeof v === 'string' && /^#[\da-f]{6}([\da-f]{2})?$/i.test(v);
+const argb = v => (v.length === 7 ? '#FF' + v.slice(1) : v).toUpperCase();
+const validNumbers = (list, length) => Array.isArray(list) && list.length === length && list.every(n => Number.isFinite(n) && n >= 0 && n < 10000);
+const validBubble = m => m && validNumbers(m.cap, 2) && validNumbers(m.insets, 4);
+
+function fitImage(png, spec) {
+  if (!spec.size) return png;
+  const [w, h] = spec.size;
+  return spec.fit === 'contain' ? contain(png, w, h) : cover(png, w, h, spec.fit === 'cover-top' ? 'top' : 'center');
+}
+
+// Cap insets (pt) and text insets (pt, top/left/bottom/right) from an Android bubble nine-patch.
+function bubbleMetrics(bubble, nine) {
+  const { image, stretchX, stretchY, padX, padY } = nine;
+  // Android KakaoTalk adds its own spacing inside the nine-patch padding; iOS
+  // uses the insets as-is. Offsets calibrated from Kakao's paired Android/iOS
+  // samples (same artwork): +6 top, +3 bottom, +7 on the tail side, +4 opposite.
+  const send = bubble.startsWith('Send');
+  return {
+    cap: [pt(stretchX.start), pt(stretchY.start)],
+    insets: [pt(padY.start) + 6, pt(padX.start) + (send ? 4 : 7), pt(image.height - padY.end) + 3, pt(image.width - padX.end) + (send ? 7 : 4)]
+  };
+}
+
+// Converts Android project data into iPhone resources.
+// editedOnly: only images that came from the user's Android edits (for importing).
+function convertAndroid(data = {}, { editedOnly = false } = {}) {
+  const load = imageLoader(data);
+  const android = projectColors(data);
+  const colors = {};
+  for (const c of IOS.colors) colors[c.key] = argb(validColor(android[c.from]) ? android[c.from] : '#000000');
+  const images = {}, bubbles = {};
+  for (const spec of IOS.images) {
+    const source = load(spec.from) ? spec.from : spec.fallback;
+    if (editedOnly && !(source && load.edited(source))) continue;
+    let png = source && load(source);
+    if (!png) throw Error(`이미지를 찾을 수 없습니다: ${spec.from}`);
+    if (spec.nine) {
+      const nine = unNine(png);
+      png = nine.image;
+      if (spec.bubble) bubbles[spec.name] = bubbleMetrics(spec.bubble, nine);
+    }
+    images[spec.name] = fitImage(png, spec);
+  }
+  const profileCount = Math.min(3, Math.max(1, Number(data.editor?.profileCount) || 1));
+  return { colors, images, bubbles, profileCount };
+}
+
+let templateCache;
+function templateState() { return templateCache ||= convertAndroid({}); }
+
+// The iPhone resources a build uses. Projects without an `ios` block (made before
+// the iPhone tab was separate) keep following their Android edits.
+function iosState(data = {}) {
+  const ios = data.ios;
+  if (!ios || typeof ios !== 'object') return convertAndroid(data);
+  const base = templateState();
+  const colors = { ...base.colors }, images = { ...base.images }, bubbles = { ...base.bubbles };
+  for (const [key, value] of Object.entries(ios.colors || {})) if (COLOR_KEYS.has(key) && validColor(value)) colors[key] = argb(value);
+  for (const [name, url] of Object.entries(ios.images || {})) {
+    const spec = IMAGE_SPECS[name], buffer = decodeDataUrl(url);
+    if (spec && buffer) images[name] = fitImage(PNG.sync.read(buffer), spec);
+  }
+  for (const [name, metrics] of Object.entries(ios.bubbles || {})) if (name in bubbles && validBubble(metrics)) bubbles[name] = metrics;
+  const profileCount = Math.min(3, Math.max(1, Number(ios.profileCount) || 1));
+  return { colors, images, bubbles, profileCount };
+}
+
+const toDataUrl = png => 'data:image/png;base64,' + PNG.sync.write(png).toString('base64');
+function exportState(state) {
+  return {
+    colors: { ...state.colors },
+    images: Object.fromEntries(Object.entries(state.images).map(([name, png]) => [name, toDataUrl(png)])),
+    bubbles: JSON.parse(JSON.stringify(state.bubbles)),
+    profileCount: state.profileCount
+  };
+}
+
+// Template defaults for the iPhone preview (sent to the editor once).
+function previewBase() { return exportState(templateState()); }
+
+// "안드로이드 값 가져오기": every color plus the images the user edited on Android.
+function importFromAndroid(data = {}) { return exportState(convertAndroid(data, { editedOnly: true })); }
+
+/* ---------- package ---------- */
 
 function buildKtheme(data = {}) {
   const info = data.editor?.info || {};
@@ -170,86 +261,37 @@ function buildKtheme(data = {}) {
   if (!/^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$/.test(info.packageId || ''))
     throw Error('앱 식별자는 영문자로 시작하는 부분을 점으로 연결하세요. 예: KongeuniThema.NewThema');
 
-  const load = imageLoader(data);
-  const colors = projectColors(data);
+  const state = iosState(data);
   const files = [];
   const warnings = [];
 
-  // Adds name@3x.png and name@2x.png from a @3x (xxhdpi) image.
+  // Adds name@3x.png and name@2x.png from a @3x image.
   const addScaled = (name, png3x) => {
     files.push({ name: `Images/${name}@3x.png`, data: PNG.sync.write(png3x) });
     const png2x = resize(png3x, Math.max(1, Math.round(png3x.width * 2 / 3)), Math.max(1, Math.round(png3x.height * 2 / 3)));
     files.push({ name: `Images/${name}@2x.png`, data: PNG.sync.write(png2x) });
   };
-  const need = name => {
-    const png = load(name);
-    if (!png) throw Error(`이미지를 찾을 수 없습니다: ${name}`);
-    return png;
-  };
 
-  // Backgrounds
-  addScaled('mainBgImage', cover(need('theme_background_image.png'), 1125, 2250));
-  addScaled('chatroomBgImage', cover(need('theme_chatroom_background_image.png'), 1125, 2250));
-  addScaled('passcodeBgImage', cover(need('theme_passcode_background_image.png'), 1200, 1200));
-  addScaled('maintabBgImage', cover(unNine(need('theme_maintab_cell_image.9.png')).image, 1410, 147, 'top'));
-
-  // Tab icons
-  for (const tab of TABS) {
-    addScaled(`maintabIco${cap(tab)}`, contain(need(`theme_maintab_ico_${tab}_image.png`), 114, 114));
-    addScaled(`maintabIco${cap(tab)}Selected`, contain(need(`theme_maintab_ico_${tab}_focused_image.png`), 114, 114));
-  }
-  // 'Local' tab has no Android counterpart; reuse the Now icons.
-  addScaled('maintabIcoLocal', contain(need('theme_maintab_ico_now_image.png'), 114, 114));
-  addScaled('maintabIcoLocalSelected', contain(need('theme_maintab_ico_now_focused_image.png'), 114, 114));
-
-  // Chat bubbles: nine-patch -> plain image + cap insets / text insets
-  const bubbles = {};
-  for (const [ios, android] of [['Send01', 'me_01'], ['Send02', 'me_02'], ['Receive01', 'you_01'], ['Receive02', 'you_02']]) {
-    const nine = unNine(need(`theme_chatroom_bubble_${android}_image.9.png`));
-    addScaled(`chatroomBubble${ios}`, nine.image);
-    addScaled(`chatroomBubble${ios}Selected`, darken(nine.image, 0.92));
-    const { image, stretchX, stretchY, padX, padY } = nine;
-    // Android KakaoTalk adds its own spacing inside the nine-patch padding; iOS
-    // uses the insets as-is. Offsets calibrated from Kakao's paired Android/iOS
-    // samples (same artwork): +6 top, +3 bottom, +7 on the tail side, +4 opposite.
-    const send = ios.startsWith('Send');
-    const [top, left, bottom, right] = [
-      pt(padY.start) + 6,
-      pt(padX.start) + (send ? 4 : 7),
-      pt(image.height - padY.end) + 3,
-      pt(image.width - padX.end) + (send ? 7 : 4)
-    ];
-    bubbles[ios] = {
-      cap: `${pt(stretchX.start)}px ${pt(stretchY.start)}px`,
-      insets: `${top}px ${left}px ${bottom}px ${right}px`
-    };
-  }
-
-  // Default profiles (up to 3)
-  const profileCount = Math.min(3, Math.max(1, Number(data.editor?.profileCount) || 1));
   const profiles = [];
-  for (let i = 1; i <= profileCount; i++) {
-    const png = load(`theme_profile_0${i}_image.png`) || need('theme_profile_01_image.png');
-    addScaled(`profileImg0${i}`, cover(png, 360, 360));
-    profiles.push(`'profileImg0${i}.png'`);
+  for (const spec of IOS.images) {
+    const profile = spec.name.match(/^profileImg0(\d)$/);
+    if (profile && Number(profile[1]) > state.profileCount) continue;
+    if (profile) profiles.push(`'${spec.name}.png'`);
+    addScaled(spec.name, state.images[spec.name]);
+    if (spec.bubble) addScaled(`${spec.name}Selected`, darken(state.images[spec.name], 0.92));
   }
-
-  // Passcode
-  for (let i = 1; i <= 4; i++) {
-    addScaled(`passcodeImgCode0${i}`, contain(need(`theme_passcode_0${i}_image.png`), 132, 132));
-    addScaled(`passcodeImgCode0${i}Selected`, contain(need(`theme_passcode_0${i}_checked_image.png`), 132, 132));
-  }
-  addScaled('passcodeKeypadPressed', circle(180, splitColor(colors.theme_passcode_keypad_pressed_background_color || '#99FFFFFF')));
-
-  // Add-friend button
-  addScaled('findBtnAddFriend', need('theme_find_add_friend_button_image.png'));
+  addScaled('passcodeKeypadPressed', circle(180, splitColor(state.colors.keypad_pressed)));
 
   // Theme icon (shown in KakaoTalk's theme list)
   const iconBuffer = decodeDataUrl(info.icon) || fs.readFileSync(DEFAULT_ICON);
   files.push({ name: 'Images/commonIcoTheme.png', data: PNG.sync.write(cover(PNG.sync.read(iconBuffer), 162, 162)) });
   if (!info.icon) warnings.push('테마 아이콘을 지정하지 않아 기본 아이콘을 사용했습니다.');
 
-  const css = buildCss({ info, colors, bubbles, profiles });
+  const bubbles = Object.fromEntries(Object.entries(state.bubbles).map(([name, m]) => [name.replace('chatroomBubble', ''), {
+    cap: `${m.cap[0]}px ${m.cap[1]}px`,
+    insets: `${m.insets[0]}px ${m.insets[1]}px ${m.insets[2]}px ${m.insets[3]}px`
+  }]));
+  const css = buildCss({ info, colors: state.colors, bubbles, profiles });
   files.unshift({ name: 'KakaoTalkTheme.css', data: Buffer.from(css, 'utf8') });
   return { buffer: createZip(files), css, files: files.map(f => f.name), warnings };
 }
@@ -262,11 +304,12 @@ function themeVersion(version) {
   return String(version || '').match(/\d+(?:\.\d+){0,2}/)?.[0] || '1.0.0';
 }
 
+// colors: iPhone keys from ios-catalog.js (#AARRGGBB).
 function buildCss({ info, colors, bubbles, profiles }) {
   const c = key => splitColor(colors[key]);
   const rgb = key => c(key).rgb;
-  const bodyCell = c('theme_body_cell_color'), pressedCell = c('theme_body_cell_pressed_color');
-  const border = c('theme_body_cell_border_color'), menuButton = c('theme_chatroom_input_bar_menu_button_color');
+  const bodyCell = c('main_cell'), pressedCell = c('main_cell_pressed');
+  const border = c('section_border'), menuButton = c('menu_button');
   const tab = (name, file = cap(name)) =>
     `    -ios-${name}-normal-icon-image: 'maintabIco${file}.png';\n    -ios-${name}-selected-icon-image: 'maintabIco${file}Selected.png';`;
 
@@ -287,7 +330,7 @@ ManifestStyle
 /* TabBar */
 TabBarStyle-Main
 {
-    -background-sidebar-color: ${rgb('theme_background_color')};
+    -background-sidebar-color: ${rgb('tabbar_sidebar')};
     -ios-background-image: 'maintabBgImage.png';
 ${['friends', 'chats', 'now', 'shopping', 'more', 'call', 'piccoma', 'local'].map(n => tab(n)).join('\n')}
 ${tab('openchats', 'Now')}
@@ -296,21 +339,21 @@ ${tab('openchats', 'Now')}
 /* Main */
 HeaderStyle-Main
 {
-    -ios-text-color: ${rgb('theme_header_color')};
-    -ios-tab-text-color: ${rgb('theme_feature_browse_tab_color')};
-    -ios-tab-highlighted-text-color: ${rgb('theme_feature_browse_tab_focused_color')};
+    -ios-text-color: ${rgb('header_text')};
+    -ios-tab-text-color: ${rgb('header_tab_text')};
+    -ios-tab-highlighted-text-color: ${rgb('header_tab_selected')};
 }
 
 MainViewStyle-Primary
 {
-    background-color: ${rgb('theme_background_color')};
+    background-color: ${rgb('main_bg')};
     -ios-background-image: 'mainBgImage.png';
-    -ios-text-color: ${rgb('theme_title_color')};
-    -ios-highlighted-text-color: ${rgb('theme_title_pressed_color')};
-    -ios-description-text-color: ${rgb('theme_description_color')};
-    -ios-description-highlighted-text-color: ${rgb('theme_description_pressed_color')};
-    -ios-paragraph-text-color: ${rgb('theme_paragraph_color')};
-    -ios-paragraph-highlighted-text-color: ${rgb('theme_paragraph_pressed_color')};
+    -ios-text-color: ${rgb('main_text')};
+    -ios-highlighted-text-color: ${rgb('main_text_pressed')};
+    -ios-description-text-color: ${rgb('main_desc')};
+    -ios-description-highlighted-text-color: ${rgb('main_desc_pressed')};
+    -ios-paragraph-text-color: ${rgb('main_paragraph')};
+    -ios-paragraph-highlighted-text-color: ${rgb('main_paragraph_pressed')};
     -ios-normal-background-color: ${bodyCell.rgb};
     -ios-normal-background-alpha: ${alphaText(bodyCell.alpha)};
     -ios-selected-background-color: ${pressedCell.rgb};
@@ -319,28 +362,28 @@ MainViewStyle-Primary
 
 MainViewStyle-Secondary
 {
-    background-color: ${rgb('theme_body_secondary_cell_color')};
+    background-color: ${rgb('secondary_bg')};
 }
 
 SectionTitleStyle-Main
 {
     border-color: ${border.rgb};
     border-alpha: ${alphaText(border.alpha)};
-    -ios-text-color: ${rgb('theme_section_title_color')};
+    -ios-text-color: ${rgb('section_text')};
     -ios-text-alpha: 1.0;
 }
 
 /* Feature */
 FeatureStyle-Primary
 {
-    -ios-text-color: ${rgb('theme_feature_primary_color')};
+    -ios-text-color: ${rgb('feature_text')};
 }
 
 ButtonStyle-Main
 {
-    background-color: ${rgb('theme_header_cell_color')};
-    -ios-highlighted-background-color: ${pressedCell.rgb};
-    -ios-selected-background-color: ${rgb('theme_title_color')};
+    background-color: ${rgb('button_bg')};
+    -ios-highlighted-background-color: ${rgb('button_pressed')};
+    -ios-selected-background-color: ${rgb('button_selected')};
 }
 
 ButtonStyle-AddFriend
@@ -356,20 +399,20 @@ DefaultProfileStyle
 /* ChatRoom */
 BackgroundStyle-ChatRoom
 {
-    background-color: ${rgb('theme_chatroom_background_color')};
+    background-color: ${rgb('chat_bg')};
     -ios-background-image: 'chatroomBgImage.png';
 }
 
 InputBarStyle-Chat
 {
-    background-color: ${rgb('theme_chatroom_input_bar_background_color')};
-    -ios-send-normal-background-color: ${rgb('theme_chatroom_input_bar_send_button_color')};
-    -ios-send-normal-foreground-color: ${rgb('theme_chatroom_input_bar_send_icon_color')};
-    -ios-send-highlighted-background-color: ${rgb('theme_chatroom_input_bar_send_button_color')};
-    -ios-send-highlighted-foreground-color: ${rgb('theme_chatroom_input_bar_send_icon_color')};
-    -ios-button-normal-foreground-color: ${rgb('theme_chatroom_input_bar_menu_icon_color')};
-    -ios-button-highlighted-foreground-color: ${rgb('theme_chatroom_input_bar_menu_icon_color')};
-    -ios-button-text-color: ${rgb('theme_chatroom_input_bar_color')};
+    background-color: ${rgb('input_bg')};
+    -ios-send-normal-background-color: ${rgb('send_button')};
+    -ios-send-normal-foreground-color: ${rgb('send_icon')};
+    -ios-send-highlighted-background-color: ${rgb('send_button')};
+    -ios-send-highlighted-foreground-color: ${rgb('send_icon')};
+    -ios-button-normal-foreground-color: ${rgb('menu_icon')};
+    -ios-button-highlighted-foreground-color: ${rgb('menu_icon')};
+    -ios-button-text-color: ${rgb('input_text')};
     -ios-button-normal-background-color: ${menuButton.rgb};
     -ios-button-normal-background-alpha: ${alphaText(menuButton.alpha)};
 }
@@ -382,9 +425,9 @@ MessageCellStyle-Send
     -ios-group-selected-background-image: 'chatroomBubbleSend02Selected.png' ${bubbles.Send02.cap};
     -ios-title-edgeinsets: ${bubbles.Send01.insets};  /* top, left, bottom, right */
     -ios-group-title-edgeinsets: ${bubbles.Send02.insets};
-    -ios-text-color: ${rgb('theme_chatroom_bubble_me_color')};
-    -ios-selected-text-color: ${rgb('theme_chatroom_bubble_me_color')};
-    -ios-unread-text-color: ${rgb('theme_chatroom_unread_count_color')};
+    -ios-text-color: ${rgb('send_text')};
+    -ios-selected-text-color: ${rgb('send_text')};
+    -ios-unread-text-color: ${rgb('unread')};
 }
 
 MessageCellStyle-Receive
@@ -395,75 +438,75 @@ MessageCellStyle-Receive
     -ios-group-selected-background-image: 'chatroomBubbleReceive02Selected.png' ${bubbles.Receive02.cap};
     -ios-title-edgeinsets: ${bubbles.Receive01.insets};  /* top, left, bottom, right */
     -ios-group-title-edgeinsets: ${bubbles.Receive02.insets};
-    -ios-text-color: ${rgb('theme_chatroom_bubble_you_color')};
-    -ios-selected-text-color: ${rgb('theme_chatroom_bubble_you_color')};
-    -ios-unread-text-color: ${rgb('theme_chatroom_unread_count_color')};
+    -ios-text-color: ${rgb('receive_text')};
+    -ios-selected-text-color: ${rgb('receive_text')};
+    -ios-unread-text-color: ${rgb('unread')};
 }
 
 /* Passcode */
 BackgroundStyle-Passcode
 {
-    background-color: ${rgb('theme_passcode_background_color')};
+    background-color: ${rgb('passcode_bg')};
     -ios-background-image: 'passcodeBgImage.png';
 }
 
 LabelStyle-PasscodeTitle
 {
-    -ios-text-color: ${rgb('theme_passcode_color')};
+    -ios-text-color: ${rgb('passcode_title')};
 }
 
 PasscodeStyle
 {
 ${[1, 2, 3, 4].map((n, i) => `    -ios-bullet-${['first', 'second', 'third', 'fourth'][i]}-image: 'passcodeImgCode0${n}.png';`).join('\n')}
 ${[1, 2, 3, 4].map((n, i) => `    -ios-bullet-selected-${['first', 'second', 'third', 'fourth'][i]}-image: 'passcodeImgCode0${n}Selected.png';`).join('\n')}
-    -ios-keypad-background-color: ${rgb('theme_passcode_keypad_background_color')};
-    -ios-keypad-text-normal-color: ${rgb('theme_passcode_keypad_color')};
+    -ios-keypad-background-color: ${rgb('keypad_bg')};
+    -ios-keypad-text-normal-color: ${rgb('keypad_text')};
     -ios-keypad-number-highlighted-image: 'passcodeKeypadPressed.png';
 }
 
 /* Notification bar */
 BackgroundStyle-MessageNotificationBar
 {
-    background-color: ${rgb('theme_notification_background_color')};
+    background-color: ${rgb('noti_bg')};
 }
 
 LabelStyle-MessageNotificationBarName
 {
-    -ios-text-color: ${rgb('theme_notification_color')};
+    -ios-text-color: ${rgb('noti_name')};
 }
 
 LabelStyle-MessageNotificationBarMessage
 {
-    -ios-text-color: ${rgb('theme_notification_color')};
+    -ios-text-color: ${rgb('noti_message')};
 }
 
 /* Direct share */
 BackgroundStyle-DirectShareBar
 {
-    background-color: ${rgb('theme_direct_share_background_color')};
+    background-color: ${rgb('share_bg')};
 }
 
 LabelStyle-DirectShareBarName
 {
-    -ios-text-color: ${rgb('theme_direct_share_color')};
+    -ios-text-color: ${rgb('share_name')};
 }
 
 LabelStyle-DirectShareBarMessage
 {
-    -ios-text-color: ${rgb('theme_direct_share_button_color')};
+    -ios-text-color: ${rgb('share_message')};
 }
 
 /* Bottom banner */
 BottomBannerStyle
 {
-    background-color: ${rgb('theme_tab_bannerbadge_background_color')};
+    background-color: ${rgb('banner_bg')};
 }
 
 BottomBannerStyle-Light
 {
-    background-color: ${rgb('theme_tab_lightbannerbadge_background_color')};
+    background-color: ${rgb('banner_light_bg')};
 }
 `;
 }
 
-module.exports = { buildKtheme, buildCss, unNine, resize, splitColor };
+module.exports = { buildKtheme, buildCss, unNine, resize, splitColor, iosState, previewBase, importFromAndroid };

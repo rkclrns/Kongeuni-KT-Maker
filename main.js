@@ -109,7 +109,7 @@ ipcMain.handle('build-apk', async (_event, data) => {
   // Each build gets a larger versionCode so KakaoTalk reloads the theme instead of reusing cached resources.
   const gradleFile = path.join(buildDir, 'build.gradle.kts');
   fs.writeFileSync(gradleFile, fs.readFileSync(gradleFile, 'utf8').replace(/versionCode = \d+/, `versionCode = ${Math.floor(Date.now() / 60000) - 29000000}`), 'utf8');
-  require('./theme-icon.cjs').applyIcon(buildDir, data.editor?.info?.icon, require('electron').nativeImage);
+  require('./theme-icon.cjs').applyIcon(buildDir, data.editor?.info?.icon, require('electron').nativeImage, { foreground: data.editor?.info?.iconForeground, background: data.editor?.info?.iconBackground });
   const colorsPath = path.join(buildDir, 'src', 'main', 'theme', 'values', 'colors.xml');
   let colors = fs.readFileSync(colorsPath, 'utf8');
   colors = colors.replace(/(<color name="theme_background_color">)([^<]+)(<\/color>)/, `$1${data.color}$3`);
@@ -155,6 +155,11 @@ ipcMain.handle('build-apk', async (_event, data) => {
   fs.copyFileSync(apk, result.filePath);
   return { path: result.filePath };
 });
+
+// iPhone tab: template defaults for its preview, and "안드로이드 값 가져오기".
+let iosPreviewBase;
+ipcMain.handle('ios-preview-base', () => iosPreviewBase ||= require('./ios-theme.cjs').previewBase());
+ipcMain.handle('ios-import-android', (_event, data) => require('./ios-theme.cjs').importFromAndroid(data));
 
 ipcMain.handle('build-ktheme', async (_event, data) => {
   const backupDir=path.join(app.getPath('userData'),'project-backups');

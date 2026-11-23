@@ -11,13 +11,9 @@
 <body>
   <header class="topbar">
     <div class="app-brand"><img src="assets/app-logo.png" alt="콩으니 로고"><strong>Kongeuni KT Maker</strong><span id="platform-version">Android 26.1.0</span></div>
-    <nav class="platform-tabs" role="tablist" aria-label="테마 종류">
-      <button role="tab" class="platform-tab active" data-platform="android" aria-selected="true">안드로이드 (갤럭시) 테마</button>
-      <button role="tab" class="platform-tab" data-platform="ios" aria-selected="false">아이폰 테마</button>
-    </nav>
     <div class="actions"><button id="open-project">불러오기</button><button id="save-project">프로젝트 저장</button><button class="primary" id="build-ktheme" hidden>아이폰 테마(.ktheme) 만들기</button><button class="primary" id="build-apk">APK 만들기</button></div>
   </header>
-  <div class="shell">
+  <div class="shell" id="android-shell">
     <aside class="sidebar">
       <div class="section-label">프로젝트</div>
       <button class="nav">테마 정보</button>
@@ -32,7 +28,7 @@
       <button class="nav" data-screen="splash">시작 화면</button>
     </aside>
     <main class="stage">
-      <div class="stagebar"><span class="platform active" id="platform-badge">Android</span><span id="platform-note">공식 샘플 리소스 합성 미리보기 · 결과물: 갤럭시용 APK</span></div>
+      <div class="stagebar"><div class="platform-toggle" role="tablist" aria-label="테마 종류"><button role="tab" class="platform-tab" data-platform="ios" aria-selected="false">iPhone</button><button role="tab" class="platform-tab active" data-platform="android" aria-selected="true">Android</button></div><span id="platform-note">바꾸고 싶은 화면 요소를 클릭하세요</span><span></span></div>
       <div class="canvas">
         <div class="phone" id="phone">
           <div class="screen friends-screen" id="friends">
@@ -103,6 +99,31 @@
       <p class="hint">이미지를 선택하면 미리보기에 즉시 반영됩니다.</p>
     </aside>
   </div>
+  <!-- iPhone workspace: its own preview and its own colors/images (project.ios). -->
+  <div class="ios-shell" id="ios-shell" hidden>
+    <aside class="ios-sidebar">
+      <div class="ios-label">프로젝트</div>
+      <button class="ios-nav-info" id="ios-open-info">테마 정보 (공통)</button>
+      <div class="ios-label">아이폰 화면</div>
+      <button class="ios-nav active" data-ios-screen="friends">친구</button>
+      <button class="ios-nav" data-ios-screen="chats">채팅 목록</button>
+      <button class="ios-nav" data-ios-screen="chatroom">채팅방</button>
+      <button class="ios-nav" data-ios-screen="now">지금</button>
+      <button class="ios-nav" data-ios-screen="shopping">쇼핑</button>
+      <button class="ios-nav" data-ios-screen="more">더보기</button>
+      <button class="ios-nav" data-ios-screen="notification">알림·공유</button>
+      <button class="ios-nav" data-ios-screen="passcode">잠금화면</button>
+    </aside>
+    <main class="ios-stage">
+      <div class="ios-stagebar"><div class="platform-toggle" role="tablist" aria-label="테마 종류"><button role="tab" class="platform-tab active" data-platform="ios" aria-selected="true">iPhone</button><button role="tab" class="platform-tab" data-platform="android" aria-selected="false">Android</button></div><span>바꾸고 싶은 화면 요소를 클릭하세요</span><span></span></div>
+      <div class="ios-canvas">
+        <div class="iphone" id="iphone"></div>
+        <div class="ios-zoom"><button type="button" id="ios-zoom-out" aria-label="축소">−</button><button type="button" id="ios-zoom-value" title="100%로">100%</button><button type="button" id="ios-zoom-in" aria-label="확대">+</button></div>
+      </div>
+    </main>
+    <aside class="ios-inspector" id="ios-panel"></aside>
+  </div>
+  <script src="ios-catalog.js"></script>
   <script src="renderer.js"></script>
   <script src="nine-assets.js"></script>
   <script src="resource-catalog.js"></script>
@@ -118,5 +139,12 @@
   <link rel="stylesheet" href="editor-v7.css">
   <script src="editor-v8.js"></script>
   <link rel="stylesheet" href="editor-v8.css">
+  <script src="theme-info-page.js"></script>
+  <link rel="stylesheet" href="theme-info-page.css">
+  <script src="android-panel.js"></script>
+  <link rel="stylesheet" href="android-panel.css">
+  <script src="ios-editor.js"></script>
+  <link rel="stylesheet" href="ios-editor.css">
+  <link rel="stylesheet" href="layout-unify.css">
 </body>
 </html>

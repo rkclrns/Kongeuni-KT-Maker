@@ -2,10 +2,9 @@
 .app-brand{display:flex;align-items:center;gap:10px}.app-brand>img{width:42px;height:42px;object-fit:contain;border-radius:8px}.app-brand>span{margin-left:0}.app-brand>strong{white-space:nowrap}
 
 .match-tab-color{grid-column:1/-1;justify-self:start;margin-top:6px;border:1px solid #d6dae1;background:#fff;border-radius:7px;padding:5px 10px;font-size:11px;font-weight:600;cursor:pointer}
-.platform-tabs{display:flex;gap:4px;padding:4px;background:#eef0f4;border-radius:12px}
-.platform-tab{border:0;background:transparent;border-radius:9px;padding:9px 18px;font-weight:700;font-size:13px;color:#6b717c;cursor:pointer;white-space:nowrap}
-.platform-tab:hover{color:#262a30}
-.platform-tab.active{background:#fff;color:#262a30;box-shadow:0 1px 3px rgba(0,0,0,.12)}
-.platform-tab:focus-visible{outline:2px solid #675be8;outline-offset:1px}
 .topbar .actions button[hidden]{display:none}
-body[data-platform=ios] #platform-badge{background:#262a30;color:#fff;border-color:#262a30}
+.platform-toggle{display:inline-flex;gap:2px;padding:3px;background:#fff;border:1px solid #dde3eb;border-radius:10px;box-shadow:0 1px 2px #1a24330f;justify-self:start}
+.platform-tab{border:0;background:transparent;border-radius:7px;padding:6px 16px;font-size:12px;font-weight:600;color:#7d8490;cursor:pointer;white-space:nowrap;font-family:inherit}
+.platform-tab:hover{color:#262a30}
+.platform-tab.active{background:#eef1f5;color:#24262b;font-weight:700}
+.platform-tab:focus-visible{outline:2px solid #675be8;outline-offset:1px}

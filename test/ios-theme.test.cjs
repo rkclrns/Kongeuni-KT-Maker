@@ -76,3 +76,33 @@ test('rejects missing theme information before writing anything', () => {
   assert.throws(() => buildKtheme({ editor: { info: { ...info, title: ' ' } } }), /테마 이름/);
   assert.throws(() => buildKtheme({ editor: { info: { ...info, packageId: 'bad id' } } }), /앱 식별자/);
 });
+
+test('iPhone tab edits are separate from Android edits', () => {
+  const png = new PNG({ width: 50, height: 80 });
+  png.data.fill(200);
+  const dataUrl = 'data:image/png;base64,' + PNG.sync.write(png).toString('base64');
+  const result = buildKtheme({
+    editor: { info, colors: { theme_header_color: '#ABCDEF', theme_title_color: '#111111' }, images: {} },
+    ios: { colors: { main_text: '#FF00AA00' }, images: { mainBgImage: dataUrl }, bubbles: { chatroomBubbleSend01: { cap: [5, 6], insets: [1, 2, 3, 4] } }, profileCount: 1 }
+  });
+  // iPhone value wins; Android edits do not leak into the iPhone theme.
+  assert.match(result.css, /MainViewStyle-Primary[\s\S]*?-ios-text-color: #00AA00;/);
+  assert.match(result.css, /HeaderStyle-Main\s*\{\s*-ios-text-color: #664242;/);
+  assert.match(result.css, /'chatroomBubbleSend01\.png' 5px 6px;/);
+  assert.match(result.css, /MessageCellStyle-Send[\s\S]*?-ios-title-edgeinsets: 1px 2px 3px 4px;/);
+  const bg = PNG.sync.read(unzip(result.buffer)['Images/mainBgImage@3x.png']);
+  assert.deepEqual([bg.width, bg.height], [1125, 2250], 'iPhone image fitted to its slot');
+});
+
+test('import from Android copies colors and only the edited images', () => {
+  const { importFromAndroid } = require('../ios-theme.cjs');
+  const png = new PNG({ width: 300, height: 300 });
+  png.data.fill(255);
+  const dataUrl = 'data:image/png;base64,' + PNG.sync.write(png).toString('base64');
+  const state = importFromAndroid({ editor: { colors: { theme_title_color: '#123456' }, images: { 'theme_profile_01_image.png': dataUrl } } });
+  assert.equal(state.colors.main_text, '#FF123456');
+  // Only profile images (02/03 fall back to the edited 01 in the template); nothing else.
+  assert.ok(Object.keys(state.images).every(name => /^profileImg0[123]$/.test(name)));
+  assert.ok(state.images.profileImg01);
+  assert.match(state.images.profileImg01, /^data:image\/png;base64,/);
+});
