@@ -90,7 +90,32 @@ function applyProject(data){
   setPlatform(data.platform||'android');
 }
 document.querySelector('#save-project').addEventListener('click',async()=>{if(await window.studio.saveProject(projectData()))alert('프로젝트를 저장했습니다.');});
-document.querySelector('#open-project').addEventListener('click',async()=>{const data=await window.studio.openProject();if(data)applyProject(data);});
+// Merges an opened APK (→ Android tab) or .ktheme (→ iPhone tab) into the current project.
+function applyImport(result){
+  const data=projectData();
+  data.editor={...(data.editor||{}),info:{...(data.editor?.info||{}),...result.info}};
+  if(result.import==='apk'){
+    data.editor.colors=result.colors;
+    data.editor.images=result.images;
+    data.editor.profileCount=result.profileCount;
+    const bg=result.colors.theme_background_color;
+    if(bg)data.color=('#'+bg.slice(-6)).toUpperCase();
+    data.platform='android';
+  }else{
+    data.ios=result.ios;
+    data.platform='ios';
+  }
+  applyProject(data);
+  const what=result.import==='apk'?'안드로이드 APK를 안드로이드 탭으로':'아이폰 테마(.ktheme)를 아이폰 탭으로';
+  alert(`${what} 불러왔습니다.${result.warnings?.length?'\n\n참고:\n'+result.warnings.slice(0,8).join('\n'):''}`);
+}
+document.querySelector('#open-project').addEventListener('click',async()=>{
+  let data;
+  try{data=await window.studio.openProject();}
+  catch(error){return alert(`불러오기 실패\n\n${String(error.message).replace(/^Error invoking remote method '[^']+': (Error: )?/,'')}`);}
+  if(!data)return;
+  if(data.import)applyImport(data);else applyProject(data);
+});
 document.querySelector('#build-apk').addEventListener('click',async()=>{
   const button=document.querySelector('#build-apk');
   if(button.disabled)return;

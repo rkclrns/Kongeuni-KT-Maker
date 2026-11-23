@@ -69,9 +69,17 @@ ipcMain.handle('save-project', async (_event, data) => {
 });
 
 ipcMain.handle('open-project', async () => {
-  const result = await dialog.showOpenDialog({ properties: ['openFile'], filters: [{ name: 'KTalk Studio 프로젝트', extensions: ['ktstudio'] }] });
+  const result = await dialog.showOpenDialog({ properties: ['openFile'], filters: [
+    { name: '프로젝트·테마 파일', extensions: ['ktstudio', 'apk', 'ktheme'] },
+    { name: 'KTalk Studio 프로젝트', extensions: ['ktstudio'] },
+    { name: '안드로이드 테마 (APK)', extensions: ['apk'] },
+    { name: '아이폰 테마 (.ktheme)', extensions: ['ktheme'] }
+  ] });
   if (result.canceled) return null;
-  return JSON.parse(fs.readFileSync(result.filePaths[0], 'utf8'));
+  const file = result.filePaths[0];
+  // A finished APK / .ktheme is converted back into editor data.
+  if (/\.(apk|ktheme)$/i.test(file)) return require('./theme-import.cjs').importTheme(file);
+  return JSON.parse(fs.readFileSync(file, 'utf8'));
 });
 
 function copyProject(source, destination) {
