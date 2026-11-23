@@ -14,7 +14,7 @@ function bind(selector,title,keys,images=[]){document.querySelectorAll(selector)
 bind('.main-bg','메인 배경',['theme_background_color','theme_header_cell_color'],['theme_background_image.png']);
 bind('.chat-bg','채팅방 배경',['theme_chatroom_background_color'],['theme_chatroom_background_image.png']);
 bind('.passcode-bg','잠금 배경',['theme_passcode_background_color'],['theme_passcode_background_image.png']);
-bind('.header,.chat-header','상단 제목·아이콘',['theme_header_color','theme_header_cell_color']);
+bind('.header,.chat-header','상단 제목·아이콘',['theme_header_color']);
 bind('.person,.chat-item','목록 셀 · 기본 / 누름',[...group('theme_title_'),...group('theme_paragraph_'),...group('theme_description_'),...group('theme_body_cell_')]);
 bind('.section-title','섹션 제목',['theme_section_title_color']);
 bind('.notice-card','알림 · 기본 / 누름',group('theme_notification_'));

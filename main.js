@@ -106,6 +106,9 @@ ipcMain.handle('build-apk', async (_event, data) => {
   const buildDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ktalk-theme-'));
   copyProject(path.join(__dirname, 'android-template'), buildDir);
   require('./theme-info.cjs').applyInfo(buildDir, data.editor?.info);
+  // Each build gets a larger versionCode so KakaoTalk reloads the theme instead of reusing cached resources.
+  const gradleFile = path.join(buildDir, 'build.gradle.kts');
+  fs.writeFileSync(gradleFile, fs.readFileSync(gradleFile, 'utf8').replace(/versionCode = \d+/, `versionCode = ${Math.floor(Date.now() / 60000) - 29000000}`), 'utf8');
   require('./theme-icon.cjs').applyIcon(buildDir, data.editor?.info?.icon, require('electron').nativeImage);
   const colorsPath = path.join(buildDir, 'src', 'main', 'theme', 'values', 'colors.xml');
   let colors = fs.readFileSync(colorsPath, 'utf8');

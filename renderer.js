@@ -52,18 +52,39 @@ document.querySelector('#replace-screen-bg').addEventListener('click',async()=>{
   document.querySelector('#replace-screen-bg img').src=url;
 });
 
+// Android (Galaxy APK) and iPhone (.ktheme) are separate tabs: each shows only its own build button.
+const platforms={
+  android:{version:'Android 26.1.0',badge:'Android',note:'공식 샘플 리소스 합성 미리보기 · 결과물: 갤럭시용 APK'},
+  ios:{version:'iOS · .ktheme',badge:'iPhone',note:'같은 편집 내용을 아이폰용 .ktheme 파일로 변환합니다 · 일부 안드로이드 전용 항목은 반영되지 않을 수 있어요'}
+};
+let currentPlatform='android';
+function setPlatform(name){
+  if(!platforms[name])name='android';
+  currentPlatform=name;
+  const info=platforms[name];
+  document.querySelectorAll('.platform-tab').forEach(tab=>{const on=tab.dataset.platform===name;tab.classList.toggle('active',on);tab.setAttribute('aria-selected',String(on));});
+  document.querySelector('#build-apk').hidden=name!=='android';
+  document.querySelector('#build-ktheme').hidden=name!=='ios';
+  document.querySelector('#platform-version').textContent=info.version;
+  document.querySelector('#platform-badge').textContent=info.badge;
+  document.querySelector('#platform-note').textContent=info.note;
+  document.body.dataset.platform=name;
+}
+document.querySelectorAll('.platform-tab').forEach(tab=>tab.addEventListener('click',()=>setPlatform(tab.dataset.platform)));
+
 function projectData(){
   const slots={};
   ['main-bg','chat-bg','passcode-bg','splash-bg','profile'].forEach(slot=>{
     const image=document.querySelector(`[data-slot="${slot}"]`); if(image)slots[slot]=image.src;
   });
-  return {schema:'ktalk-theme-studio',version:1,color:document.querySelector('#main-color').value.toUpperCase(),slots,editor:window.themeEditor?JSON.parse(JSON.stringify(window.themeEditor.state)):undefined};
+  return {schema:'ktalk-theme-studio',version:1,platform:currentPlatform,color:document.querySelector('#main-color').value.toUpperCase(),slots,editor:window.themeEditor?JSON.parse(JSON.stringify(window.themeEditor.state)):undefined};
 }
 function applyProject(data){
   if(!data||data.schema!=='ktalk-theme-studio')return alert('지원하지 않는 프로젝트 파일입니다.');
   if(data.color){document.querySelector('#main-color').value=data.color;document.documentElement.style.setProperty('--theme',data.color);document.querySelector('.color-row code').textContent=data.color;}
   Object.entries(data.slots||{}).forEach(([slot,url])=>document.querySelectorAll(`[data-slot="${slot}"]`).forEach(x=>x.src=url));
   if(data.editor)window.themeEditor.restore(data.editor);
+  if(data.platform)setPlatform(data.platform);
 }
 document.querySelector('#save-project').addEventListener('click',async()=>{if(await window.studio.saveProject(projectData()))alert('프로젝트를 저장했습니다.');});
 document.querySelector('#open-project').addEventListener('click',async()=>{const data=await window.studio.openProject();if(data)applyProject(data);});
@@ -92,7 +113,7 @@ document.querySelector('#build-ktheme').addEventListener('click',async()=>{
   const button=document.querySelector('#build-ktheme');
   if(button.disabled)return;
   button.disabled=true;
-  button.textContent='iOS 테마 만드는 중…';
+  button.textContent='아이폰 테마 만드는 중…';
   button.setAttribute('aria-busy','true');
   let result, failure;
   try {
@@ -101,7 +122,7 @@ document.querySelector('#build-ktheme').addEventListener('click',async()=>{
     failure=error;
   } finally {
     button.disabled=false;
-    button.textContent='iOS 테마 만들기';
+    button.textContent='아이폰 테마(.ktheme) 만들기';
     button.removeAttribute('aria-busy');
   }
   if(failure)alert(`iOS 테마 만들기 실패\n\n${String(failure.message).replace(/^Error invoking remote method '[^']+': (Error: )?/,'')}`);
