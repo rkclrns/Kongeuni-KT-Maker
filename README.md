@@ -66,7 +66,10 @@ APK 만들기를 누르면 JDK 21, SDK 폴더, Platform 35, Build Tools 35.0.0, 
 npm run package:exe
 ```
 
-`dist/release/Kongeuni-KT-Maker-0.1.0-windows-x64.exe`가 생성됩니다.
+`dist/release/Kongeuni-KT-Maker-<버전>-windows-x64.exe`가 생성됩니다. (버전은 `package.json`의 `version`)
+
+`package.json`의 `version`을 올려서 main에 올리면 GitHub Actions가 그 버전의 새 릴리즈(`v<버전>`)를 만듭니다.
+이미 있는 버전의 릴리즈는 덮어쓰지 않습니다.
 릴리즈의 EXE 하나를 내려받아 실행하면 됩니다. 설치나 ZIP 압축 해제가 필요 없습니다.
 첫 실행 시 내부 파일을 임시 폴더에 풀기 때문에 잠시 시간이 걸릴 수 있습니다.
 
