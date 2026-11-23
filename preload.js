@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('studio', {
   saveProject: data => ipcRenderer.invoke('save-project', data),
   openProject: () => ipcRenderer.invoke('open-project'),
   buildApk: data => ipcRenderer.invoke('build-apk', data),
+  buildKtheme: data => ipcRenderer.invoke('build-ktheme', data),
   copyNineCoordinates: text => ipcRenderer.invoke('copy-nine-coordinates', text),
   pasteNineCoordinates: () => ipcRenderer.invoke('paste-nine-coordinates')
 });

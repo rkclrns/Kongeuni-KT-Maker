@@ -100,6 +100,7 @@ ipcMain.handle('build-apk', async (_event, data) => {
   fs.mkdirSync(backupDir,{recursive:true});
   const backupPath=path.join(backupDir,`before-build-${Date.now()}.ktstudio`);
   fs.writeFileSync(backupPath,JSON.stringify(data,null,2),'utf8');
+  require('./android-preflight.cjs').check();
   const result = await dialog.showSaveDialog({ defaultPath: '카카오톡테마.apk', filters: [{ name: 'Android APK', extensions: ['apk'] }] });
   if (result.canceled || !result.filePath) return { canceled: true };
   const buildDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ktalk-theme-'));
@@ -131,7 +132,7 @@ ipcMain.handle('build-apk', async (_event, data) => {
   }
   require('./profile-resources.cjs').applyProfiles(buildDir,data.editor);
   require('./nine-patch.cjs').normalizeTree(path.join(buildDir,'src','main','theme'));
-  const sdk = process.env.ANDROID_HOME || path.join(process.env.LOCALAPPDATA || '', 'Android', 'Sdk');
+  const sdk = require('./android-preflight.cjs').sdkPath();
   fs.writeFileSync(path.join(buildDir, 'local.properties'), `sdk.dir=${sdk.replaceAll('\\','/')}\n`, 'utf8');
   const javaHome = require('./java-runtime.cjs').selectJava();
   const env = { ...process.env, JAVA_HOME: javaHome, ANDROID_HOME: sdk, GRADLE_USER_HOME: path.join(app.getPath('userData'), 'gradle') };
@@ -150,6 +151,19 @@ ipcMain.handle('build-apk', async (_event, data) => {
   if (!apk) throw new Error('빌드 결과 APK를 찾지 못했습니다.');
   fs.copyFileSync(apk, result.filePath);
   return { path: result.filePath };
+});
+
+ipcMain.handle('build-ktheme', async (_event, data) => {
+  const backupDir=path.join(app.getPath('userData'),'project-backups');
+  fs.mkdirSync(backupDir,{recursive:true});
+  fs.writeFileSync(path.join(backupDir,`before-ktheme-${Date.now()}.ktstudio`),JSON.stringify(data,null,2),'utf8');
+  // Validate and convert first so an error never leaves an empty file behind.
+  const built=require('./ios-theme.cjs').buildKtheme(data);
+  const title=(data.editor?.info?.title||'카카오톡테마').replace(/[\\/:*?"<>|]/g,'_');
+  const result = await dialog.showSaveDialog({ defaultPath: `${title}.ktheme`, filters: [{ name: 'iOS 카카오톡 테마', extensions: ['ktheme'] }] });
+  if (result.canceled || !result.filePath) return { canceled: true };
+  fs.writeFileSync(result.filePath, built.buffer);
+  return { path: result.filePath, warnings: built.warnings };
 });
 
 app.whenReady().then(createWindow);

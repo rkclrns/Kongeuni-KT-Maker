@@ -87,3 +87,23 @@ document.querySelector('#build-apk').addEventListener('click',async()=>{
   if(failure)alert(`APK 빌드 실패\n\n${failure.message}`);
   else if(result&&!result.canceled)alert(`APK를 만들었습니다.\n${result.path}`);
 });
+
+document.querySelector('#build-ktheme').addEventListener('click',async()=>{
+  const button=document.querySelector('#build-ktheme');
+  if(button.disabled)return;
+  button.disabled=true;
+  button.textContent='iOS 테마 만드는 중…';
+  button.setAttribute('aria-busy','true');
+  let result, failure;
+  try {
+    result=await window.studio.buildKtheme(projectData());
+  } catch(error) {
+    failure=error;
+  } finally {
+    button.disabled=false;
+    button.textContent='iOS 테마 만들기';
+    button.removeAttribute('aria-busy');
+  }
+  if(failure)alert(`iOS 테마 만들기 실패\n\n${String(failure.message).replace(/^Error invoking remote method '[^']+': (Error: )?/,'')}`);
+  else if(result&&!result.canceled)alert(`iOS 테마(.ktheme)를 만들었습니다.\n${result.path}${result.warnings?.length?'\n\n참고: '+result.warnings.join('\n'):''}\n\n아이폰에서 파일 앱이나 메일로 .ktheme 파일을 열고 카카오톡으로 공유하면 적용할 수 있습니다.`);
+});
